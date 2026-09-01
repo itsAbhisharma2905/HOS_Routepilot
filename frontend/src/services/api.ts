@@ -1,7 +1,7 @@
-import type { ApiErrorPayload, Compliance, DailyLog, DailyLogRemark, DailyLogSegment, DailyLogSummary, EventLocation, Location, RouteResult, TripEvent, TripInput, TripPlanResult, TripSummary, Violation } from "../types/trip";
+import type { ApiErrorPayload, Compliance, DailyLog, DailyLogRemark, DailyLogSegment, DailyLogSummary, EventLocation, HOSState, Location, RouteResult, TripEvent, TripInput, TripPlanResult, TripSummary, Violation } from "../types/trip";
 import { validateDailyLogs } from "../utils/dailyLogs";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000/api" : "");
 
 export class ApiError extends Error {
   readonly status: number;
@@ -94,6 +94,16 @@ function isCompliance(value: unknown): value is Compliance {
   return isRecord(value) && typeof value.compliant === "boolean" && Array.isArray(value.violations) && value.violations.every(isViolation);
 }
 
+function isHOSState(value: unknown): value is HOSState {
+  if (!isRecord(value) || typeof value.current_timestamp !== "string" ||
+    typeof value.pickup_completed !== "boolean" || typeof value.dropoff_completed !== "boolean") return false;
+  return [
+    "route_distance_miles", "cycle_used_minutes", "cycle_remaining_minutes",
+    "driving_in_current_window_minutes", "elapsed_duty_window_minutes",
+    "driving_since_break_minutes", "distance_since_fuel_miles",
+  ].every((field) => isNumber(value[field]));
+}
+
 function isDailyLogSegment(value: unknown): value is DailyLogSegment {
   return isRecord(value) &&
     typeof value.id === "string" &&
@@ -142,7 +152,7 @@ function isDailyLog(value: unknown): value is DailyLog {
     Array.isArray(value.remarks) && value.remarks.every(isDailyLogRemark);
 }
 
-function isTripPlanResult(value: unknown): value is TripPlanResult {
+export function isTripPlanResult(value: unknown): value is TripPlanResult {
   if (!isRecord(value)) return false;
   const locations = value.locations;
   const route = value.route;
@@ -158,11 +168,16 @@ function isTripPlanResult(value: unknown): value is TripPlanResult {
     isSummary(value.summary) &&
     isCompliance(value.compliance) &&
     Array.isArray(value.violations) && value.violations.every(isViolation) &&
-    Array.isArray(value.daily_logs) && value.daily_logs.every(isDailyLog)
+    Array.isArray(value.daily_logs) && value.daily_logs.every(isDailyLog) &&
+    (value.state === undefined || isHOSState(value.state))
   );
 }
 
 export async function planTrip(input: TripInput): Promise<TripPlanResult> {
+  if (!API_BASE_URL) {
+    throw new ApiError("The planner API URL is not configured for this production build.", 0);
+  }
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/trips/plan/`, {

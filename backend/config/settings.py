@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 
@@ -45,8 +46,17 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-secret-key-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", True)
+configured_secret_key = os.getenv("DJANGO_SECRET_KEY")
+if not DEBUG and (
+    not configured_secret_key
+    or configured_secret_key == "replace-me-for-production"
+    or len(configured_secret_key) < 50
+):
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY must be a unique value of at least 50 characters when DJANGO_DEBUG=false."
+    )
+SECRET_KEY = configured_secret_key or "dev-only-secret-key-change-me"
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
 INSTALLED_APPS = [

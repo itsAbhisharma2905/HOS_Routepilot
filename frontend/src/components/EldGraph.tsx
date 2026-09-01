@@ -124,8 +124,8 @@ export function EldGraph({ log }: EldGraphProps) {
               <button type="button" onClick={() => setSelectedId(segment.id)} aria-label={segmentAriaLabel(log, segment)}>
                 <span className={`eld-list-status status-${segment.status.toLowerCase()}`} aria-hidden="true" />
                 <span className="eld-list-copy">
-                  <strong>{eventLabel(segment)}</strong>
-                  <small>{clockLabel(minutesFromPeriod(log.period_start, segment.start))} to {clockLabel(minutesFromPeriod(log.period_start, segment.end))} | {formatMinutes(segment.duration_minutes)} | {locationLabel(segment.location)}</small>
+                  <strong>{segment.reason}</strong>
+                  <small>{statusLabel(segment.status)} | {clockLabel(minutesFromPeriod(log.period_start, segment.start))} to {clockLabel(minutesFromPeriod(log.period_start, segment.end))} | {formatMinutes(segment.duration_minutes)} | {locationLabel(segment.location)}</small>
                 </span>
               </button>
             </li>

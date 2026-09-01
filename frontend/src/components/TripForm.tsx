@@ -79,7 +79,7 @@ export function TripForm({ isLoading, onLoadingChange, onError, onPlan }: TripFo
   }
 
   return (
-    <form className="trip-form" onSubmit={handleSubmit} noValidate>
+    <form className="trip-form" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
       <div className="form-heading">
         <div>
           <p className="eyebrow">Trip inputs</p>

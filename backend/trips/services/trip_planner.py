@@ -90,6 +90,7 @@ class RoutePlanningService:
             "compliance": compliance,
             "violations": compliance["violations"],
             "daily_logs": [daily_log.to_dict() for daily_log in daily_logs],
+            "state": scheduled["state"],
         }
 
     @staticmethod

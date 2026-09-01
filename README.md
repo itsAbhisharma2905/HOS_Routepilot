@@ -4,7 +4,7 @@ Full-stack truck trip planner for the Spotter Full Stack Developer assessment.
 
 ## Current status
 
-Phase 5 final implementation is now in place:
+Phase 6.6 final implementation is now in place:
 
 - Django + Django REST Framework backend
 - React + TypeScript + Vite frontend
@@ -20,6 +20,11 @@ Phase 5 final implementation is now in place:
 - backend-sourced summary, compliance, stop details, and chronological event timeline
 - backend-derived ELD daily logs with midnight splitting, exact 24-hour coverage, daily summaries, remarks, and integrity validation
 - time-proportional interactive ELD graph for all four backend duty statuses
+- printable daily logbook with route context, event details, totals, remarks, and print-specific layout
+- client-side trip history with validated plan reopening, empty state, and confirmed delete/clear actions
+- backend-derived compliance summary with rule-limit context, event counts, and violation details
+- read-only HOS Rules view documenting the backend-enforced planning assumptions
+- product-level dashboard with local trip KPIs, latest-plan summary, New Trip CTA, and ELD/history shortcuts
 - loading, empty, API-error, and malformed-response states
 
 The plan endpoint returns the route, schedule, stops, summary, compliance result, and daily logs. ELD logs are a presentation of the backend schedule; they do not recalculate HOS compliance and do not claim regulatory certification.
@@ -43,8 +48,8 @@ backend/
       validators.py
 frontend/
   src/
-    components/       # form, map, summary, stops, timeline, ELD, and state views
-    services/         # centralized backend API client and response validation
+    components/       # form, map, summary, stops, timeline, ELD, history, and state views
+    services/         # centralized API, response validation, and local history storage
     types/            # synchronized API/domain model
     utils/            # display-only formatting helpers
 ```
@@ -98,6 +103,7 @@ The response contains:
 - `events` as the single chronological source for future timeline and ELD consumers
 - `stops` as the non-driving events: pickup, dropoff, fuel, break, rest, and restart
 - `summary` with driving, duty, stop, duration, cycle, and calendar-day totals
+- `state` with the backend scheduler's final driving-window, duty-window, cycle, and route-progress counters
 - `compliance` and top-level `violations` from an independent validation pass
 - `daily_logs` with complete calendar-day periods, split `segments`, daily summaries, and backend-derived remarks
 
@@ -107,9 +113,15 @@ The API validates the request before calling the service layer. Provider and pla
 
 `App` owns the request lifecycle and passes one validated `TripPlanResult` to the presentation components. `TripForm` sends only user-entered values through `services/api.ts`; it does not contain route or HOS calculations. The API client validates the response shape before map, summary, timeline, or compliance components render it.
 
-`RouteOverview` and `TripSummary` display backend route and summary values. `RouteMap` converts backend GeoJSON `[longitude, latitude]` coordinates to Leaflet positions, fits the map to the returned geometry, and renders current, pickup, dropoff, fuel, break, rest, and restart markers. `StopTimeline` preserves backend event order; its filters are display-only and never recompute the plan. `ComplianceBadge` reports the backend compliance result and violations without making a second client-side decision.
+`RouteOverview` and `TripSummary` display backend route and summary values. `RouteMap` converts backend GeoJSON `[longitude, latitude]` coordinates to Leaflet positions, fits the map to the returned geometry, and renders current, pickup, dropoff, fuel, break, rest, and restart markers. `StopTimeline` preserves backend event order; its filters are display-only and never recompute the plan. `ComplianceBadge` presents the backend compliance result, summary counters, rule-limit context, and returned violation records without making a second client-side HOS decision.
 
-`daily_logs.py` delegates midnight splitting to the Phase 3 `split_event_at_midnight` helper. It creates one `DailyLog` per calendar day, adds explicit presentation-only off-duty coverage before the first and after the last scheduled event, derives daily status totals from the resulting segments, and validates source-duration preservation, chronology, coverage, and 1,440-minute totals. `EldDailyLogs` and `EldGraph` render this response directly. The graph maps minutes since local log midnight to percentage positions, while the accessible event list provides a text equivalent.
+`daily_logs.py` delegates midnight splitting to the Phase 3 `split_event_at_midnight` helper. It creates one `DailyLog` per calendar day, adds explicit presentation-only off-duty coverage before the first and after the last scheduled event, derives daily status totals from the resulting segments, and validates source-duration preservation, chronology, coverage, and 1,440-minute totals. `EldDailyLogs` and `EldGraph` render this response directly. The graph maps minutes since local log midnight to percentage positions, while the accessible event list provides a text equivalent. The visible `Print Daily Log` action uses the browser print flow; `@media print` removes navigation and interactive chrome while retaining the graph, event details, totals, and remarks.
+
+`TripHistory` is a client-only presentation feature. After the API client accepts a complete `planned` response, the app stores that validated result in the browser's `localStorage` under a versioned key. It retains the six most recent plans so `View trip` can restore the exact route, schedule, daily logs, and compliance result without a second planning request. Invalid or unreadable stored entries are ignored safely; no backend persistence, account, or authentication is involved.
+
+`HosRules` is an informational, read-only view of the current property-carrying driver model: 70 hours/8 days, 11-hour driving, 14-hour on-duty window, 30-minute break after 8 cumulative driving hours, 10-hour qualifying rest, and a 34-hour restart when cycle availability is exhausted. It also states that adverse-driving-condition and short-haul exceptions are not implemented. The page does not expose controls and cannot change backend scheduling.
+
+`Dashboard` is the client-side home view. Its saved-plan counts and total planned miles are derived only from validated trip results already in local history. The latest-plan panel reopens the existing result, and the ELD shortcut focuses the existing daily-log section; no new route, compliance, or ELD calculations are performed in the dashboard.
 
 The frontend uses `leaflet`, `react-leaflet`, and `@types/leaflet`. Route geometry is passed to one polyline rather than rendered as one React node per point, which keeps large route responses manageable.
 
@@ -170,5 +182,6 @@ No deployment credentials or hosting target are configured in this workspace, so
 
 - Daily logs represent the generated planning schedule and use explicit presentation-only off-duty coverage outside the scheduled trip. They are not certified driver logs.
 - ELD export/PDF generation is not included because the core daily graph and integrity checks take priority.
+- Trip history is limited to this browser's local storage and is not synchronized across browsers or devices. It can be cleared by the user or browser storage policy.
 - Public provider availability and coverage can vary. A provider timeout or malformed response is surfaced as a safe API error and no fake route is returned.
 - The application is a planning/demo tool, not a certified legal ELD system. Real operations require complete duty history, jurisdiction-specific review, provider-quality controls, and qualified compliance interpretation.

@@ -1,6 +1,6 @@
 import type { DailyLog, TripPlanResult } from "../types/trip";
 import { EldGraph } from "./EldGraph";
-import { formatHours, formatDateTime } from "../utils/format";
+import { formatHours, formatDateTime, formatMiles, locationLabel } from "../utils/format";
 
 interface EldDailyLogsProps {
   result: TripPlanResult;
@@ -61,15 +61,28 @@ function DailyLogCard({ log, index }: { log: DailyLog; index: number }) {
 }
 
 export function EldDailyLogs({ result }: EldDailyLogsProps) {
+  function printDailyLog() {
+    window.print();
+  }
+
   return (
-    <section className="panel eld-panel" aria-labelledby="eld-title">
-      <div className="panel-heading">
+    <section className="panel eld-panel" id="eld-daily-logs" tabIndex={-1} aria-labelledby="eld-title">
+      <div className="panel-heading eld-panel-heading">
         <div>
           <p className="section-kicker">ELD daily logs</p>
           <h2 id="eld-title">A complete 24-hour view</h2>
           <p className="panel-caption">A proportional representation of the validated backend event timeline. The log does not recalculate HOS compliance.</p>
         </div>
-        <span className="event-count">{result.daily_logs.length} {result.daily_logs.length === 1 ? "day" : "days"}</span>
+        <div className="eld-heading-actions">
+          <span className="event-count">{result.daily_logs.length} {result.daily_logs.length === 1 ? "day" : "days"}</span>
+          <button className="print-log-button print-hide" type="button" onClick={printDailyLog}>Print Daily Log</button>
+        </div>
+      </div>
+      <div className="eld-route-context" aria-label="Trip information for daily log">
+        <div><span>Trip route</span><strong>{locationLabel(result.locations.current)} <b aria-hidden="true">to</b> {locationLabel(result.locations.pickup)} <b aria-hidden="true">to</b> {locationLabel(result.locations.dropoff)}</strong></div>
+        <div><span>Total route</span><strong>{formatMiles(result.route.distance_miles)}</strong></div>
+        <div><span>Cycle at start</span><strong>{formatHours(result.summary.initial_cycle_used_hours)}</strong></div>
+        <div><span>Plan source</span><strong>Backend validated timeline</strong></div>
       </div>
       {result.daily_logs.length > 0 ? (
         <div className="eld-day-stack">
