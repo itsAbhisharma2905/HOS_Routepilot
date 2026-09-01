@@ -1,7 +1,13 @@
 import type { ApiErrorPayload, Compliance, DailyLog, DailyLogRemark, DailyLogSegment, DailyLogSummary, EventLocation, HOSState, Location, RouteResult, TripEvent, TripInput, TripPlanResult, TripSummary, Violation } from "../types/trip";
 import { validateDailyLogs } from "../utils/dailyLogs";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000/api" : "");
+function normalizeApiBaseUrl(value: string | undefined): string {
+  const configuredValue = value?.trim().replace(/\/+$/, "") ?? "";
+  if (!configuredValue) return import.meta.env.DEV ? "http://localhost:8000/api" : "";
+  return configuredValue.toLowerCase().endsWith("/api") ? configuredValue : `${configuredValue}/api`;
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 export class ApiError extends Error {
   readonly status: number;
@@ -186,6 +192,12 @@ export async function planTrip(input: TripInput): Promise<TripPlanResult> {
       body: JSON.stringify(input),
     });
   } catch {
+    if (import.meta.env.DEV) {
+      console.error("[RoutePilot] Planner request failed", {
+        status: 0,
+        detail: "The planner API could not be reached.",
+      });
+    }
     throw new ApiError("The planner API could not be reached. Check that the backend is running.", 0);
   }
 
@@ -195,23 +207,40 @@ export async function planTrip(input: TripInput): Promise<TripPlanResult> {
     const fieldError = Object.values(errorPayload).find(
       (value) => Array.isArray(value) && typeof value[0] === "string",
     );
-    throw new ApiError(
+    const message =
       errorPayload.error?.message ??
-        errorPayload.detail ??
-        (Array.isArray(fieldError) ? String(fieldError[0]) : undefined) ??
-        "The planner could not process this request.",
-      response.status,
-      errorPayload.error?.code,
-      errorPayload.error?.field,
-    );
+      errorPayload.detail ??
+      (Array.isArray(fieldError) ? String(fieldError[0]) : undefined) ??
+      `The planner API returned HTTP ${response.status}${response.headers.get("content-type") ? ` (${response.headers.get("content-type")})` : ""}.`;
+    if (import.meta.env.DEV) {
+      console.error("[RoutePilot] Planner API error", {
+        status: response.status,
+        detail: message,
+        code: errorPayload.error?.code,
+        field: errorPayload.error?.field,
+      });
+    }
+    throw new ApiError(message, response.status, errorPayload.error?.code, errorPayload.error?.field);
   }
 
   if (!isTripPlanResult(payload)) {
+    if (import.meta.env.DEV) {
+      console.error("[RoutePilot] Planner API returned an incomplete response", {
+        status: response.status,
+        detail: "The response did not match the planner contract.",
+      });
+    }
     throw new ApiError("The planner returned an incomplete response.", response.status);
   }
 
   const dailyLogErrors = validateDailyLogs(payload.daily_logs, payload.events);
   if (dailyLogErrors.length > 0) {
+    if (import.meta.env.DEV) {
+      console.error("[RoutePilot] Planner API returned invalid daily log data", {
+        status: response.status,
+        detail: dailyLogErrors[0],
+      });
+    }
     throw new ApiError(`The planner returned invalid daily log data: ${dailyLogErrors[0]}`, response.status);
   }
 
