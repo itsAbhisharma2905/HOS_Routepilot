@@ -3,9 +3,6 @@
 Full-stack truck trip planner for the Spotter Full Stack Developer assessment.
 
 ## Current status
-
-Phase 6.6 final implementation is now in place:
-
 - Django + Django REST Framework backend
 - React + TypeScript + Vite frontend
 - environment-based configuration
